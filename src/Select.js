@@ -55,6 +55,7 @@ var Select = React.createClass({
 		singleValueComponent: React.PropTypes.func,// single value component when multiple is set to false
 		value: React.PropTypes.any,                // initial field value
 		valueComponent: React.PropTypes.func,      // value component to render in multiple mode
+		searchableInputComponent: React.PropTypes.func,   // value component to render in multiple mode
 		valueKey: React.PropTypes.string,          // path of the label value in option objects
 		valueRenderer: React.PropTypes.func        // valueRenderer: function (option) {}
 	},
@@ -94,6 +95,7 @@ var Select = React.createClass({
 			singleValueComponent: SingleValue,
 			value: undefined,
 			valueComponent: Value,
+			searchableInputComponent: Input,
 			valueKey: 'value'
 		};
 	},
@@ -112,12 +114,17 @@ var Select = React.createClass({
 			isFocused: false,
 			isLoading: false,
 			isOpen: false,
-			options: this.props.options
+			options: this.props.options,
+			asyncOptions: this.props.asyncOptions
 		};
 	},
 
-	componentWillMount () {
+	resetOptionsCache () {
 		this._optionsCache = {};
+	},
+
+	componentWillMount () {
+		this.resetOptionsCache();
 		this._optionsFilterString = '';
 		this._closeMenuIfClickedOutside = (event) => {
 			if (!this.state.isOpen) {
@@ -154,7 +161,7 @@ var Select = React.createClass({
 	},
 
 	componentDidMount () {
-		if (this.props.asyncOptions && this.props.autoload) {
+		if (this.state.asyncOptions && this.props.autoload) {
 			this.autoloadAsyncOptions();
 		}
 	},
@@ -176,18 +183,29 @@ var Select = React.createClass({
 				filteredOptions: this.filterOptions(newProps.options)
 			});
 		}
-		if (newProps.value !== this.state.value || newProps.placeholder !== this.props.placeholder || optionsChanged) {
-			var setState = (newState) => {
-				this.setState(this.getStateFromValue(newProps.value,
-					(newState && newState.options) || newProps.options,
-					newProps.placeholder
-				));
-			};
-			if (this.props.asyncOptions) {
-				this.loadAsyncOptions(newProps.value, {}, setState);
-			} else {
-				setState();
+
+		var asyncOptionsChanged = newProps.asyncOptions !== this.props.asyncOptions;
+		if (newProps.value !== this.state.value || newProps.placeholder !== this.props.placeholder || optionsChanged || asyncOptionsChanged)
+		{
+			var newState;
+			var getSyncState = () => this.getStateFromValue(newProps.value, newProps.options, newProps.placeholder);
+
+			if (asyncOptionsChanged) {
+				this.resetOptionsCache();
 			}
+
+			if (newProps.asyncOptions) {
+				newState = {};
+			} else {
+				newState = getSyncState();
+			}
+			newState.asyncOptions = newProps.asyncOptions;
+
+			this.setState(newState, () => {
+				if (this.state.asyncOptions) {
+					this.loadAsyncOptions(newProps.value, {}, () => this.setState(getSyncState()));
+				}
+			});
 		}
 	},
 
@@ -313,9 +331,9 @@ var Select = React.createClass({
 		this.setState(newState);
 	},
 
-	selectValue (value) {
+	selectValue (value, focusAfterUpdate) {
 		if (!this.props.multi) {
-			this.setValue(value);
+			this.setValue(value, focusAfterUpdate);
 		} else if (value) {
 			this.addValue(value);
 		}
@@ -436,6 +454,11 @@ var Select = React.createClass({
 	},
 
 	handleInputBlur (event) {
+		if (this.state.inputValue || this.state.focusedOption) {
+			this._focusAfterUpdate = false;
+			this.selectFocusedOption(false);
+		}
+
 		this._blurTimeout = setTimeout(() => {
 			if (this._focusAfterUpdate || !this.isMounted()) return;
 			this.setState({
@@ -457,14 +480,7 @@ var Select = React.createClass({
 					this.popValue();
 				}
 			return;
-			case 9: // tab
-				if (event.shiftKey || !this.state.isOpen || !this.state.focusedOption) {
-					return;
-				}
-				this.selectFocusedOption();
-			break;
 			case 13: // enter
-				if (!this.state.isOpen) return;
 				this.selectFocusedOption();
 			break;
 			case 27: // escape
@@ -514,7 +530,7 @@ var Select = React.createClass({
 			this.props.onInputChange(event.target.value);
 		}
 
-		if (this.props.asyncOptions) {
+		if (this.state.asyncOptions) {
 			this.setState({
 				isLoading: true,
 				inputValue: event.target.value
@@ -569,7 +585,7 @@ var Select = React.createClass({
 			}
 		}
 
-		this.props.asyncOptions(input, (err, data) => {
+		this.state.asyncOptions(input, (err, data) => {
 			if (err) throw err;
 			if (this.props.cacheAsyncResults) {
 				this._optionsCache[input] = data;
@@ -595,6 +611,36 @@ var Select = React.createClass({
 		});
 	},
 
+	filterOption (op, filterValue) {
+		if (this.props.multi && exclude.indexOf(op[this.props.valueKey]) > -1) return false;
+		if (this.props.filterOption) return this.props.filterOption.call(this, op, filterValue);
+		var valueTest = String(op[this.props.valueKey]);
+		var labelTest = String(op[this.props.labelKey]);
+		if (this.props.ignoreCase) {
+			valueTest = valueTest.toLowerCase();
+			labelTest = labelTest.toLowerCase();
+			filterValue = filterValue.toLowerCase();
+		}
+		var partial, exact, matchProp = this.props.matchProp;
+		if (filterValue) {
+			partial = (this.props.matchPos === 'start') ? (
+				(matchProp !== 'label' && valueTest.substr(0, filterValue.length) === filterValue) ||
+				(matchProp !== 'value' && labelTest.substr(0, filterValue.length) === filterValue)
+			) : (
+				(matchProp !== 'label' && valueTest.indexOf(filterValue) >= 0) ||
+				(matchProp !== 'value' && labelTest.indexOf(filterValue) >= 0)
+			);
+
+			exact = partial &&
+					((matchProp !== 'label' && valueTest === filterValue) ||
+					 (matchProp !== 'value' && labelTest === filterValue));
+		} else {
+			partial = true;
+			exact = false;
+		}
+		return exact ? 'exact' : partial ? 'partial' : false;
+	},
+
 	filterOptions (options, values) {
 		var filterValue = this._optionsFilterString;
 		var exclude = (values || this.state.values).map(function(i) {
@@ -603,35 +649,17 @@ var Select = React.createClass({
 		if (this.props.filterOptions) {
 			return this.props.filterOptions.call(this, options, filterValue, exclude);
 		} else {
-			var filterOption = function(op) {
-				if (this.props.multi && exclude.indexOf(op[this.props.valueKey]) > -1) return false;
-				if (this.props.filterOption) return this.props.filterOption.call(this, op, filterValue);
-				var valueTest = String(op[this.props.valueKey]);
-				var labelTest = String(op[this.props.labelKey]);
-				if (this.props.ignoreCase) {
-					valueTest = valueTest.toLowerCase();
-					labelTest = labelTest.toLowerCase();
-					filterValue = filterValue.toLowerCase();
-				}
-				return !filterValue || (this.props.matchPos === 'start') ? (
-					(this.props.matchProp !== 'label' && valueTest.substr(0, filterValue.length) === filterValue) ||
-					(this.props.matchProp !== 'value' && labelTest.substr(0, filterValue.length) === filterValue)
-				) : (
-					(this.props.matchProp !== 'label' && valueTest.indexOf(filterValue) >= 0) ||
-					(this.props.matchProp !== 'value' && labelTest.indexOf(filterValue) >= 0)
-				);
-			};
-			return (options || []).filter(filterOption, this);
+			return (options || []).filter((op) => !!this.filterOption(op, filterValue), this);
 		}
 	},
 
-	selectFocusedOption () {
+	selectFocusedOption (focusAfterUpdate) {
 		if (this.props.allowCreate && !this.state.focusedOption) {
-			return this.selectValue(this.state.inputValue);
+			return this.selectValue(this.state.inputValue, focusAfterUpdate);
 		}
 
 		if (this.state.focusedOption) {
-			return this.selectValue(this.state.focusedOption);
+			return this.selectValue(this.state.focusedOption, focusAfterUpdate);
 		}
 	},
 
@@ -703,16 +731,19 @@ var Select = React.createClass({
 			focusedValue = focusedValue == null ? this.state.filteredOptions[0] : focusedValue;
 		}
 		// Add the current value to the filtered options in last resort
-		var options = this.state.filteredOptions;
+		var options = this.state.filteredOptions || [];
 		if (this.props.allowCreate && this.state.inputValue.trim()) {
 			var inputValue = this.state.inputValue;
-			options = options.slice();
-			var newOption = this.props.newOptionCreator ? this.props.newOptionCreator(inputValue) : {
-				value: inputValue,
-				label: inputValue,
-				create: true
-			};
-			options.unshift(newOption);
+			var isNewValue = !options.find((op) => this.filterOption(op, inputValue) === 'exact');
+			if (isNewValue) {
+				options = options.slice();
+				var newOption = this.props.newOptionCreator ? this.props.newOptionCreator(inputValue) : {
+					value: inputValue,
+					label: inputValue,
+					create: true
+				};
+				options.unshift(newOption);
+			}
 		}
 		var ops = Object.keys(options).map(function(key) {
 			var op = options[key];
@@ -750,7 +781,7 @@ var Select = React.createClass({
 			if (this.isLoading()) {
 				promptClass = 'Select-searching';
 				noResultsText = this.props.searchingText;
-			} else if (this.state.inputValue || !this.props.asyncOptions) {
+			} else if (this.state.inputValue || !this.state.asyncOptions) {
 				promptClass = 'Select-noresults';
 				noResultsText = this.props.noResultsText;
 			} else {
@@ -848,6 +879,8 @@ var Select = React.createClass({
 			onFocus: this.handleInputFocus,
 			onBlur: this.handleInputBlur
 		};
+		var SearchInput = this.props.searchableInputComponent;
+
 		for (var key in this.props.inputProps) {
 			if (this.props.inputProps.hasOwnProperty(key) && key !== 'className') {
 				inputProps[key] = this.props.inputProps[key];
@@ -856,7 +889,7 @@ var Select = React.createClass({
 
 		if (!this.props.disabled) {
 			if (this.props.searchable) {
-				input = <Input value={this.state.inputValue} onChange={this.handleInputChange} minWidth="5" {...inputProps} />;
+				input = <SearchInput value={this.state.inputValue} onChange={this.handleInputChange} minWidth="5" {...inputProps} />;
 			} else {
 				input = <div {...inputProps}>&nbsp;</div>;
 			}
