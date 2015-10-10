@@ -124,7 +124,8 @@ var Select = React.createClass({
 		valueComponent: React.PropTypes.func, // value component to render in multiple mode
 		searchableInputComponent: React.PropTypes.func, // value component to render in multiple mode
 		valueKey: React.PropTypes.string, // path of the label value in option objects
-		valueRenderer: React.PropTypes.func // valueRenderer: function (option) {}
+		valueRenderer: React.PropTypes.func, // valueRenderer: function (option) {}
+		inputValueToValueConverter: React.PropTypes.func
 	},
 
 	getDefaultProps: function getDefaultProps() {
@@ -163,7 +164,10 @@ var Select = React.createClass({
 			value: undefined,
 			valueComponent: Value,
 			searchableInputComponent: Input,
-			valueKey: 'value'
+			valueKey: 'value',
+			inputValueToValueConverter: function inputValueToValueConverter(v) {
+				return v;
+			}
 		};
 	},
 
@@ -247,7 +251,7 @@ var Select = React.createClass({
 		var _this2 = this;
 
 		var optionsChanged = false;
-		if (JSON.stringify(newProps.options) !== JSON.stringify(this.props.options)) {
+		if (newProps.options !== this.props.options) {
 			optionsChanged = true;
 			this.setState({
 				options: newProps.options,
@@ -362,7 +366,6 @@ var Select = React.createClass({
 	},
 
 	getFirstFocusableOption: function getFirstFocusableOption(options) {
-
 		for (var optionIndex = 0; optionIndex < options.length; ++optionIndex) {
 			if (!options[optionIndex].disabled) {
 				return options[optionIndex];
@@ -383,8 +386,15 @@ var Select = React.createClass({
 		return values.map(function (val) {
 			if (typeof val === 'string' || typeof val === 'number') {
 				for (var key in options) {
-					if (options.hasOwnProperty(key) && options[key] && (options[key][_this5.props.valueKey] === val || typeof options[key][_this5.props.valueKey] === 'number' && options[key][_this5.props.valueKey].toString() === val)) {
-						return options[key];
+					var opt = options.hasOwnProperty(key) && options[key];
+					var valueKey = _this5.props.valueKey;
+					var optVal;
+
+					if (opt) {
+						optVal = opt[valueKey];
+						if (optVal === val || typeof optVal === 'number' && optVal.toString() === val) {
+							return opt;
+						}
 					}
 				}
 				return { value: val, label: val };
@@ -700,7 +710,9 @@ var Select = React.createClass({
 
 	filterOption: function filterOption(op, filterValue) {
 		if (this.props.multi && exclude.indexOf(op[this.props.valueKey]) > -1) return false;
+
 		if (this.props.filterOption) return this.props.filterOption.call(this, op, filterValue);
+
 		var valueTest = String(op[this.props.valueKey]);
 		var labelTest = String(op[this.props.labelKey]);
 		if (this.props.ignoreCase) {
@@ -727,7 +739,7 @@ var Select = React.createClass({
 
 		var filterValue = this._optionsFilterString;
 		var exclude = (values || this.state.values).map(function (i) {
-			return i.value;
+			return i[_this10.props.valueKey];
 		});
 		if (this.props.filterOptions) {
 			return this.props.filterOptions.call(this, options, filterValue, exclude);
@@ -740,7 +752,8 @@ var Select = React.createClass({
 
 	selectFocusedOption: function selectFocusedOption(focusAfterUpdate) {
 		if (this.props.allowCreate && !this.state.focusedOption) {
-			return this.selectValue(this.state.inputValue, focusAfterUpdate);
+			var value = this.props.inputValueToValueConverter(this.state.inputValue, this.state.options);
+			return this.selectValue(value, focusAfterUpdate);
 		}
 
 		if (this.state.focusedOption) {
