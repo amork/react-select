@@ -461,21 +461,24 @@ var Select = React.createClass({
 	},
 
 	handleInputBlur (event) {
-		if (this.state.inputValue || this.state.focusedOption) {
-			this._focusAfterUpdate = false;
-			this.selectFocusedOption(false);
-		}
+        var _this7 = this;
 
-		this._blurTimeout = setTimeout(() => {
-			if (this._focusAfterUpdate || !this.isMounted()) return;
-			this.setState({
-				isFocused: false,
-				isOpen: false
-			});
-		}, 50);
-		if (this.props.onBlur) {
-			this.props.onBlur(event);
-		}
+        var menuDOM = React.findDOMNode(this.refs.menu);
+        if (document.activeElement.isEqualNode(menuDOM)) {
+            return;
+        }
+
+        this._blurTimeout = setTimeout(function () {
+            if (_this7._focusAfterUpdate || !_this7.isMounted()) return;
+            _this7.setState({
+                inputValue: '',
+                isFocused: false,
+                isOpen: false
+            });
+        }, 50);
+        if (this.props.onBlur) {
+            this.props.onBlur(event);
+        }
 	},
 
 	handleKeyDown (event) {
