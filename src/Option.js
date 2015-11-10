@@ -5,6 +5,7 @@ var Option = React.createClass({
 	propTypes: {
 		addLabelText: React.PropTypes.string,          // string rendered in case of allowCreate option passed to ReactSelect
 		className: React.PropTypes.string,             // className (based on mouse position)
+		createLinkText: React.PropTypes.string,        // text for additional link add if no results found
 		mouseDown: React.PropTypes.func,               // method to handle click on option element
 		mouseEnter: React.PropTypes.func,              // method to handle mouseEnter on option element
 		mouseLeave: React.PropTypes.func,              // method to handle mouseLeave on option element
@@ -30,6 +31,12 @@ var Option = React.createClass({
 		var renderedLabel = this.props.renderFunc(obj);
 		var optionClasses = classes(this.props.className, obj.className);
 
+		var addLink = '';
+		if (obj.create && this.props.createLinkText) {
+			addLink = <span className='option__add-link ui-link'>
+				{this.props.createLinkText}</span>;
+		}
+
 		return obj.disabled ? (
 			<div className={optionClasses}
 				onMouseDown={this.blockEvent}
@@ -45,6 +52,7 @@ var Option = React.createClass({
 				onClick={this.props.mouseDown}
 				title={obj.title}>
 				{ obj.create ? this.props.addLabelText.replace('{label}', obj.label) : renderedLabel }
+				{addLink}
 			</div>
 		);
 	}

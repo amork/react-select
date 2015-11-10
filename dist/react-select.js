@@ -11,6 +11,7 @@ var Option = React.createClass({
 	propTypes: {
 		addLabelText: React.PropTypes.string, // string rendered in case of allowCreate option passed to ReactSelect
 		className: React.PropTypes.string, // className (based on mouse position)
+		createLinkText: React.PropTypes.string, // text for additional link add if no results found
 		mouseDown: React.PropTypes.func, // method to handle click on option element
 		mouseEnter: React.PropTypes.func, // method to handle mouseEnter on option element
 		mouseLeave: React.PropTypes.func, // method to handle mouseLeave on option element
@@ -36,6 +37,15 @@ var Option = React.createClass({
 		var renderedLabel = this.props.renderFunc(obj);
 		var optionClasses = classes(this.props.className, obj.className);
 
+		var addLink = '';
+		if (obj.create && this.props.createLinkText) {
+			addLink = React.createElement(
+				'span',
+				{ className: 'option__add-link ui-link' },
+				this.props.createLinkText
+			);
+		}
+
 		return obj.disabled ? React.createElement(
 			'div',
 			{ className: optionClasses,
@@ -51,7 +61,8 @@ var Option = React.createClass({
 				onMouseDown: this.props.mouseDown,
 				onClick: this.props.mouseDown,
 				title: obj.title },
-			obj.create ? this.props.addLabelText.replace('{label}', obj.label) : renderedLabel
+			obj.create ? this.props.addLabelText.replace('{label}', obj.label) : renderedLabel,
+			addLink
 		);
 	}
 });
@@ -93,6 +104,7 @@ var Select = React.createClass({
 		clearAllText: React.PropTypes.string, // title for the "clear" control when multi: true
 		clearValueText: React.PropTypes.string, // title for the "clear" control
 		clearable: React.PropTypes.bool, // should it be possible to reset value
+		createLinkText: React.PropTypes.string, // text for additional link add if no results found
 		delimiter: React.PropTypes.string, // delimiter to use to join multiple values
 		disabled: React.PropTypes.bool, // whether the Select is disabled or not
 		filterOption: React.PropTypes.func, // method to filter a single option  (option, filterString)
@@ -125,6 +137,10 @@ var Select = React.createClass({
 		searchableInputComponent: React.PropTypes.func, // value component to render in multiple mode
 		valueKey: React.PropTypes.string, // path of the label value in option objects
 		valueRenderer: React.PropTypes.func, // valueRenderer: function (option) {}
+
+		//Resolves value from user input (input control) to value in state/props (to some option, for example)
+		//Will be useful, when props.value is some option _id_ field, while user value is some option text field. This way,
+		//we can translate text to option id (or whole option)
 		inputValueToValueConverter: React.PropTypes.func
 	},
 
@@ -140,6 +156,7 @@ var Select = React.createClass({
 			clearAllText: 'Clear all',
 			clearValueText: 'Clear value',
 			clearable: true,
+			createLinkText: '',
 			delimiter: ',',
 			disabled: false,
 			ignoreCase: true,
@@ -538,24 +555,24 @@ var Select = React.createClass({
 	},
 
 	handleInputBlur: function handleInputBlur(event) {
-        var _this7 = this;
+		var _this7 = this;
 
-        var menuDOM = React.findDOMNode(this.refs.menu);
-        if (document.activeElement.isEqualNode(menuDOM)) {
-            return;
-        }
+		var menuDOM = React.findDOMNode(this.refs.menu);
+		if (document.activeElement.isEqualNode(menuDOM)) {
+			return;
+		}
 
-        this._blurTimeout = setTimeout(function () {
-            if (_this7._focusAfterUpdate || !_this7.isMounted()) return;
-            _this7.setState({
-                inputValue: '',
-                isFocused: false,
-                isOpen: false
-            });
-        }, 50);
-        if (this.props.onBlur) {
-            this.props.onBlur(event);
-        }
+		this._blurTimeout = setTimeout(function () {
+			if (_this7._focusAfterUpdate || !_this7.isMounted()) return;
+			_this7.setState({
+				inputValue: '',
+				isFocused: false,
+				isOpen: false
+			});
+		}, 50);
+		if (this.props.onBlur) {
+			this.props.onBlur(event);
+		}
 	},
 
 	handleKeyDown: function handleKeyDown(event) {
@@ -874,7 +891,8 @@ var Select = React.createClass({
 				click: mouseDown,
 				addLabelText: this.props.addLabelText,
 				option: op,
-				ref: ref
+				ref: ref,
+				createLinkText: this.props.createLinkText
 			});
 			return optionResult;
 		}, this);

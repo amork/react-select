@@ -26,6 +26,7 @@ var Select = React.createClass({
 		clearAllText: React.PropTypes.string,      // title for the "clear" control when multi: true
 		clearValueText: React.PropTypes.string,    // title for the "clear" control
 		clearable: React.PropTypes.bool,           // should it be possible to reset value
+		createLinkText: React.PropTypes.string,    // text for additional link add if no results found
 		delimiter: React.PropTypes.string,         // delimiter to use to join multiple values
 		disabled: React.PropTypes.bool,            // whether the Select is disabled or not
 		filterOption: React.PropTypes.func,        // method to filter a single option  (option, filterString)
@@ -77,6 +78,7 @@ var Select = React.createClass({
 			clearAllText: 'Clear all',
 			clearValueText: 'Clear value',
 			clearable: true,
+			createLinkText: '',
 			delimiter: ',',
 			disabled: false,
 			ignoreCase: true,
@@ -782,7 +784,8 @@ var Select = React.createClass({
 				click: mouseDown,
 				addLabelText: this.props.addLabelText,
 				option: op,
-				ref: ref
+				ref: ref,
+				createLinkText: this.props.createLinkText
 			});
 			return optionResult;
 		}, this);
